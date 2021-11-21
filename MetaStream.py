@@ -71,18 +71,20 @@ class MetaStream():
 
         return [learner.predict(X) for learner in self.learners]
 
-    # def initial_fit(self, X, y):
-    #     """
-    #     parameters:
-    #     ----------
-    #         X : 
+    def initial_fit(self, X, y):
+        """
+        parameters:
+        ----------
+            X : 
 
-    #         y : 
+            y : 
 
-    #     returns:
-    #     ----------
-    #         None
-    #     """
+        returns:
+        ----------
+            None
+        """
+
+        self.meta_learner.fit(X, y)
 
 
     def predict(self, X):
