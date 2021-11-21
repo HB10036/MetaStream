@@ -1,3 +1,6 @@
+import argparse
+import pathlib
+
 
 class MetaStream():
     def __init__(self, metaLearner, learners, train_window_size, sel_window_size):
@@ -70,3 +73,10 @@ class MetaStream():
         ----------
             y : 
         """
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('datapath', type=pathlib.Path)
+    parser.add_argument('training window size', type=int, nargs=1)
+    parser.add_argument('selection window size', type=int, nargs=1)
+    print(parser.parse_args())
