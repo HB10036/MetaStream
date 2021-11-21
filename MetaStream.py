@@ -50,8 +50,8 @@ class MetaStream():
             None
         """
 
-        for learner in self.learner:
-            learner.fit(X, y)
+
+        [learner.fit(X, y) for learner in self.learners]
 
 
     def base_predict(self, X):
