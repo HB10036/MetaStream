@@ -1,3 +1,8 @@
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, SGDClassifier
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.svm import SVR
+from sklearn.gaussian_process import GaussianProcessRegressor
+
 import argparse
 import pathlib
 
@@ -8,16 +13,23 @@ class MetaStream():
     """
 
 
-    def __init__(self, metaLearner, learners, train_window_size, sel_window_size):
+    def __init__(self, meta_learner, learners, train_window_size, sel_window_size):
         
         # meta-learner
-        self.metaLearner = metaLearner
+        self.meta_learner = meta_learner
 
         # regression models
         self.learners = learners
 
         self.train_window_size = train_window_size
         self.sel_window_size = sel_window_size
+
+
+        print("meta-learner: ", self.meta_learner)
+        print("learner: ", self.learners)
+        print("training window size: ", self.train_window_size)
+        print("selection window size: ", self.sel_window_size)
+
 
 
     def base_fit(self):
@@ -82,6 +94,24 @@ class MetaStream():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('datapath', type=pathlib.Path)
-    parser.add_argument('-training window size', default=100, type=int, nargs=1)
-    parser.add_argument('-selection window size', default=10, type=int, nargs=1)
-    # print(parser.parse_args())
+    parser.add_argument('-training_window_size', default=100, type=int, nargs=1)
+    parser.add_argument('-selection_window_size', default=10, type=int, nargs=1)
+
+    training_window_size = parser.parse_args().training_window_size
+    selection_window_size = parser.parse_args().selection_window_size
+
+    # NOTE: list of regression algorithms
+    models =    [
+                SVR(),
+                RandomForestRegressor(random_state=42),
+                GaussianProcessRegressor(random_state=42),
+                LinearRegression(),
+                Lasso(),
+                Ridge(),
+                GradientBoostingRegressor(random_state=42)
+                ]
+
+    # NOTE: meta-learner
+    meta_learner = SGDClassifier()
+
+    metas = MetaStream(meta_learner, models, training_window_size, selection_window_size)
