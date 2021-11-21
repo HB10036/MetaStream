@@ -100,6 +100,8 @@ class MetaStream():
             y : 
         """
 
+        return self.meta_learner.predict(X)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('datapath', type=pathlib.Path)
