@@ -56,16 +56,20 @@ class MetaStream():
 
     def base_predict(self, X):
         """
+        base fit needs to be run before calling this function.
+
         predict class value for X.
 
         parameters:
         ----------
-            X : 
+            X : test data
 
         returns:
         ----------
-            y : 
+            y : predicted labels(target values)
         """
+
+        return [learner.predict(X) for learner in self.learners]
 
     # def initial_fit(self, X, y):
     #     """
