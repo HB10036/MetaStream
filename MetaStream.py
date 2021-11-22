@@ -5,7 +5,10 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 
 import argparse
 import pathlib
+import meta_data
+import pandas as pd
 
+from meta_data import MetaData
 
 class MetaStream():
     """
@@ -111,6 +114,9 @@ if __name__ == "__main__":
     train_window_size = parser.parse_args().training_window_size
     sel_window_size = parser.parse_args().selection_window_size
 
+    df = pd.read_csv(parser.parse_args().datapath)
+    print(df.head())
+
     # NOTE: list of regression algorithms
     models =    [
                 SVR(),
@@ -127,3 +133,5 @@ if __name__ == "__main__":
 
     # NOTE: creates meta object
     metas = MetaStream(meta_learner, models, train_window_size, sel_window_size)
+
+    meta = MetaData(meta_learner)
