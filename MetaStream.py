@@ -55,19 +55,7 @@ class MetaStream():
         self.train_window_size = train_window_size
         self.sel_window_size = sel_window_size
 
-        self.meta_features_train_data = []
-
-        # print(self.meta_features_train_names + ['regressor'])
-
-
         self.meta_table = pd.DataFrame(columns=self.meta_features_train_names + ['regressor'])
-
-
-
-        # print("meta-learner: ", self.meta_learner)
-        # print("learner: ", self.learners)
-        # print("training window size: ", self.train_window_size)
-        # print("selection window size: ", self.sel_window_size)
 
     def add_regressor(self, regressor, idx):
         self.meta_table.loc[idx, 'regressor'] = regressor
