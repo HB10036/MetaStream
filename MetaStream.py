@@ -3,6 +3,10 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.svm import SVR
 from sklearn.gaussian_process import GaussianProcessRegressor
 
+from sklearn.model_selection import KFold, train_test_split
+from sklearn.metrics import cohen_kappa_score, mean_squared_error, classification_report, accuracy_score, make_scorer
+from imblearn.metrics import geometric_mean_score, classification_report_imbalanced
+
 import argparse
 import pathlib
 import meta_data
@@ -69,6 +73,16 @@ class MetaStream():
                 key(X, y)
 
         self.meta_table = self.meta_table.append(temp_dict, ignore_index=True)
+
+    def get_meta_features(self, X, y):
+        temp_dict = []
+        for i, (key, value) in enumerate(self.meta_features_train.items()):
+            if len(value) == 1:
+                temp_dict.append(key(key(X)))
+            else:
+                key(X, y)
+
+        return temp_dict
 
     def base_fit(self, X, y):
         """
@@ -189,12 +203,13 @@ if __name__ == "__main__":
     metas = MetaStream(meta_learner, models, train_window_size, sel_window_size, meta_features_train, meta_features_train_names)
 
 
+    # initializing base meta-data 
     for idx in range(initial_size):
         train = df.iloc[idx * gamma_size : idx * gamma_size + window_size]
         sel = df.iloc[idx * gamma_size + window_size : (idx + 1) * gamma_size + window_size]
         
         X_train, y_train =  train.drop('nswdemand', axis=1), train['nswdemand']
-        X_sel, y_sel =  sel.drop('nswdemand', axis=1), train['nswdemand']
+        X_sel, y_sel =  sel.drop('nswdemand', axis=1), sel['nswdemand']
 
         # generate meta-features across entire X_train
         metas.generate_meta_features_train(X_train, y_train)
@@ -209,6 +224,53 @@ if __name__ == "__main__":
         # add best performing regression model to meta-data table
         metas.add_regressor(max_score, idx)
 
+    # print(metas.meta_table.columns)
+
+    mxtrain, mxtest, mytrain, mytest = train_test_split(metas.meta_table.drop(['regressor'], axis=1), metas.meta_table['regressor'], random_state=42)
+
+    metas.initial_fit(mxtrain, mytrain)
+    myhattest = metas.predict(mxtest)
+    print("Kappa: ", cohen_kappa_score(mytest, myhattest))
+    print("GMean: ", geometric_mean_score(mytest, myhattest))
+    print("Accuracy: ", accuracy_score(mytest, myhattest))
+    print(classification_report(mytest, myhattest))
+    print(classification_report_imbalanced(mytest, myhattest))
+
+    m_recommended = []
+    m_best = []
+
+    score_recommended = []
+    score_default = []
+
+    small_data = 5000
+    until_data = min(initial_size + small_data, int((df.shape[0] - window_size) / gamma_size))
+    # print(small_data, until_data)
+
+    for idx in range(initial_size, until_data):
+        # print(idx)
+        train = df.iloc[idx * gamma_size : idx * gamma_size + window_size]
+        sel = df.iloc[idx * gamma_size + window_size : (idx + 1) * gamma_size + window_size]
+        
+        X_train, y_train =  train.drop('nswdemand', axis=1), train['nswdemand']
+        X_sel, y_sel =  sel.drop('nswdemand', axis=1), sel['nswdemand']
+
+        mfs = metas.get_meta_features(X_train, y_train)
+        predicted_model = int(metas.predict(np.array(mfs).reshape(1, -1))[0])
+        m_recommended.append(predicted_model)
+        
+        # print(metas.learners[predicted_model])
+        # print(metas.learners[predicted_model].fit(X_train, y_train).predict(X_sel))
+        # print(list(y_sel))
+        score1 = normalized_mse(list(y_sel), metas.learners[predicted_model].fit(X_train, y_train).predict(X_sel))
+        # print(score1)
 
 
-    print(metas.meta_table.describe())
+        # fit the regression models
+        metas.base_fit(X_train, y_train)
+
+        preds = metas.base_predict(X_sel)
+        scores = [normalized_mse(pred, y_sel) for pred in preds]
+        max_score = np.argmax(scores)
+
+        # need to still add meta data to meta data table
+
