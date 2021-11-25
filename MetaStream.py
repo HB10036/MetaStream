@@ -14,29 +14,12 @@ import pandas as pd
 import numpy as np
 
 from meta_data import MetaData
+from util import normalized_mse
 
-
-def normalized_mse(y_pred, y_true):
-    # """Normalized mean squared error regression loss
-    # Parameters
-    # ----------
-    # y_true : array-like of shape = (n_samples) or (n_samples, n_outputs)
-    #     Ground truth (correct) target values.
-    # y_pred : array-like of shape = (n_samples) or (n_samples, n_outputs)
-    #     Estimated target values.
-    # Returns
-    # -------
-    # loss : float or ndarray of floats
-    #     A non-negative floating point value (the best value is 0.0), or an
-    #     array of floating point values, one for each individual target.
-    # """
-    
-    # mse = np.mean_squared_error(y_true, y_pred)
-    mse = np.square(np.subtract(y_true, y_pred)).mean()
-    means = np.ones_like(y_true) * y_true.mean()
-    # norm = np.mean_squared_error(means, y_true)
-    norm = np.square(np.subtract(means, y_true)).mean()
-    return mse / norm
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 
 class MetaStream():
     """
@@ -59,30 +42,51 @@ class MetaStream():
         self.train_window_size = train_window_size
         self.sel_window_size = sel_window_size
 
-        self.meta_table = pd.DataFrame(columns=self.meta_features_train_names + ['regressor'])
+        # self.meta_table = pd.DataFrame(columns=self.meta_features_train_names + ['regressor'])
+        # [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]  ['regressor']
+        self.meta_table = pd.DataFrame(columns=[str(0), str(1), str(2), str(3), str(4), str(5), str(6), str(7), str(8), str(9), str(10), str(11), str(12)] + ['regressor'])
 
     def add_regressor(self, regressor, idx):
         self.meta_table.loc[idx, 'regressor'] = regressor
 
     def generate_meta_features_train(self, X, y):
-        temp_dict = {}
-        for i, (key, value) in enumerate(self.meta_features_train.items()):
-            if len(value) == 1:
-                temp_dict.update({self.meta_features_train_names[i] : key(key(X))})
-            else:
-                key(X, y)
+        ecol = importr("ECoL")
+        temp = {}
+        with localconverter(ro.default_converter + pandas2ri.converter):
 
-        self.meta_table = self.meta_table.append(temp_dict, ignore_index=True)
+            rfeatures = ecol.complexity(X, y, summary=["mean"])
+            for i, value in enumerate(rfeatures):
+                temp.update({str(i) : value})
+
+        self.meta_table = self.meta_table.append(temp, ignore_index=True)
+
+        # temp_dict = {}
+        # for i, (key, value) in enumerate(self.meta_features_train.items()):
+        #     if len(value) == 1:
+        #         temp_dict.update({self.meta_features_train_names[i] : key(key(X))})
+        #     else:
+        #         key(X, y)
+
+        # self.meta_table = self.meta_table.append(temp_dict, ignore_index=True)
 
     def get_meta_features(self, X, y):
-        temp_dict = []
-        for i, (key, value) in enumerate(self.meta_features_train.items()):
-            if len(value) == 1:
-                temp_dict.append(key(key(X)))
-            else:
-                key(X, y)
+        ecol = importr("ECoL")
+        temp = {}
+        with localconverter(ro.default_converter + pandas2ri.converter):
 
-        return temp_dict
+            rfeatures = ecol.complexity(X, y, summary=["mean"])
+            for i, value in enumerate(rfeatures):
+                temp.update({str(i) : value})
+
+        return temp
+        # temp_dict = []
+        # for i, (key, value) in enumerate(self.meta_features_train.items()):
+        #     if len(value) == 1:
+        #         temp_dict.append(key(key(X)))
+        #     else:
+        #         key(X, y)
+
+        # return temp_dict
 
     def base_fit(self, X, y):
         """
@@ -219,12 +223,14 @@ if __name__ == "__main__":
 
         preds = metas.base_predict(X_sel)
         scores = [normalized_mse(pred, y_sel) for pred in preds]
-        max_score = np.argmax(scores)
+        max_score = np.argmin(scores)
 
         # add best performing regression model to meta-data table
         metas.add_regressor(max_score, idx)
 
-    # print(metas.meta_table.columns)
+
+    print(metas.meta_table.info())
+    print(metas.meta_table.head())
 
     mxtrain, mxtest, mytrain, mytest = train_test_split(metas.meta_table.drop(['regressor'], axis=1), metas.meta_table['regressor'], random_state=42)
 
@@ -246,6 +252,8 @@ if __name__ == "__main__":
     until_data = min(initial_size + small_data, int((df.shape[0] - window_size) / gamma_size))
     # print(small_data, until_data)
 
+    count = 0
+
     for idx in range(initial_size, until_data):
         # print(idx)
         train = df.iloc[idx * gamma_size : idx * gamma_size + window_size]
@@ -255,13 +263,14 @@ if __name__ == "__main__":
         X_sel, y_sel =  sel.drop('nswdemand', axis=1), sel['nswdemand']
 
         mfs = metas.get_meta_features(X_train, y_train)
-        predicted_model = int(metas.predict(np.array(mfs).reshape(1, -1))[0])
+        predicted_model = int(metas.predict(np.array(list(mfs.values())).reshape(1, -1))[0])
         m_recommended.append(predicted_model)
         
         # print(metas.learners[predicted_model])
         # print(metas.learners[predicted_model].fit(X_train, y_train).predict(X_sel))
         # print(list(y_sel))
         score1 = normalized_mse(list(y_sel), metas.learners[predicted_model].fit(X_train, y_train).predict(X_sel))
+        score_recommended.append(score1)
         # print(score1)
 
 
@@ -270,7 +279,21 @@ if __name__ == "__main__":
 
         preds = metas.base_predict(X_sel)
         scores = [normalized_mse(pred, y_sel) for pred in preds]
-        max_score = np.argmax(scores)
+        max_score = np.argmin(scores)
+        # print(scores[max_score])
+        metas.meta_table = metas.meta_table.append(mfs, ignore_index=True)
+        metas.add_regressor(max_score, idx)
+        metas.initial_fit(metas.meta_table.drop(['regressor'], axis=1)[-100:], metas.meta_table['regressor'][-100:])
+
+        m_best.append(max_score)
 
         # need to still add meta data to meta data table
+    print("Kappa: ", cohen_kappa_score(m_best, m_recommended))
+    print("GMean: ", geometric_mean_score(m_best, m_recommended))
+    print("Accuracy: ", accuracy_score(m_best, m_recommended))
+    print(classification_report(m_best, m_recommended))
+    print(classification_report_imbalanced(m_best, m_recommended))
+
+    print("Mean score Recommended {:.2f}+-{:.2f}".format(np.mean(score_recommended), np.std(score_recommended)))
+
 
